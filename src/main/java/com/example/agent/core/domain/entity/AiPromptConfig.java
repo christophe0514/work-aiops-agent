@@ -1,4 +1,4 @@
-package com.example.agent.core.entity;
+package com.example.agent.core.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;

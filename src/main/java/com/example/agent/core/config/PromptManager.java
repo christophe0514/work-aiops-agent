@@ -1,7 +1,7 @@
 package com.example.agent.core.config;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.example.agent.core.entity.AiPromptConfig;
+import com.example.agent.core.domain.entity.AiPromptConfig;
 import com.example.agent.core.service.AiPromptService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;

@@ -229,8 +229,23 @@ Accept: text/event-stream
 响应：
 
 ```text
-text/event-stream 流式文本
+text/event-stream
 ```
+
+每个 SSE `data` 事件返回 `ChatEventVO` JSON：
+
+```json
+{
+  "eventType": "001",
+  "eventData": "主题审核通过只代表内容合规，前台是否可见还需要确认上架渠道、上架时间和缓存同步状态。"
+}
+```
+
+事件类型：
+
+- `001`：数据事件，`eventData` 为本次模型输出片段。
+- `002`：结束事件，`eventData` 为 `[DONE]`。
+- `003`：错误事件，`eventData` 为错误提示。
 
 示例：
 
@@ -256,6 +271,24 @@ mvn spring-boot:run
 ```text
 http://localhost:18080
 ```
+
+## 前端联调台
+
+项目内置了一个 Vue 3 + TypeScript 前端联调工程，位于 `frontend/`，用于调试 `/chat` 流式对话接口。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端默认启动在：
+
+```text
+http://localhost:5173
+```
+
+开发环境通过 Vite proxy 将 `/api/chat` 转发到后端 `http://localhost:18080/chat`，因此联调前需要先启动后端服务。
 
 ## 后续建设建议
 

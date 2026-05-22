@@ -1,6 +1,7 @@
 package com.example.agent.core.controller;
 
-import com.example.agent.core.dto.ChatMessageDTO;
+import com.example.agent.core.domain.dto.ChatMessageDTO;
+import com.example.agent.core.domain.vo.ChatEventVO;
 import com.example.agent.core.service.ChatService;
 
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ public class ChatController {
     private final ChatService chatService;
 
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat(@RequestBody ChatMessageDTO chatMessageDTO) {
+    public Flux<ChatEventVO> chat(@RequestBody ChatMessageDTO chatMessageDTO) {
         return chatService.chat(chatMessageDTO.getUserMessage());
     }
 

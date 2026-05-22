@@ -1,4 +1,4 @@
-package com.example.agent.core.dto;
+package com.example.agent.core.domain.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
