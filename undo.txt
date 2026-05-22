@@ -1,0 +1,43 @@
+把系统提示词、用户rewrite提示词、工具调用描述、总结提示词、意图识别提示词维护到配置中心（目前采用数据库维护），版本号可以进行AB测试使用
+提示词表结构：
+CREATE TABLE ai_prompt_config (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+
+    prompt_code VARCHAR(100) NOT NULL COMMENT 'Prompt唯一编码',
+
+    prompt_name VARCHAR(200) NOT NULL COMMENT 'Prompt名称',
+
+    prompt_type VARCHAR(50) NOT NULL COMMENT 'Prompt类型(system/user/tool)',
+
+    prompt_content TEXT NOT NULL COMMENT 'Prompt内容',
+
+    model_name VARCHAR(100) DEFAULT NULL COMMENT '绑定模型',
+
+    agent_name VARCHAR(100) DEFAULT NULL COMMENT '所属Agent',
+
+    version_num INT NOT NULL DEFAULT 1 COMMENT '版本号',
+
+    is_enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用',
+
+    remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+
+    created_by VARCHAR(100) DEFAULT NULL COMMENT '创建人',
+
+    updated_by VARCHAR(100) DEFAULT NULL COMMENT '更新人',
+
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_prompt_code_version (
+        prompt_code,
+        version_num
+    ),
+
+    KEY idx_agent_name (agent_name),
+
+    KEY idx_enabled (is_enabled)
+
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COMMENT='AI Prompt配置表';
