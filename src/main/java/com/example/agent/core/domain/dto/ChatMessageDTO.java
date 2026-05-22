@@ -9,4 +9,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ChatMessageDTO {
     private String userMessage;
+
+    // 用户ID
+    private String userId;
+
+    // 聊天线程ID
+    private String chatId;
 }

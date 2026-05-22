@@ -21,7 +21,7 @@ public class ChatController {
 
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ChatEventVO> chat(@RequestBody ChatMessageDTO chatMessageDTO) {
-        return chatService.chat(chatMessageDTO.getUserMessage());
+        return chatService.chat(chatMessageDTO.getUserMessage(), chatMessageDTO.getChatId(), chatMessageDTO.getUserId());
     }
 
 }
