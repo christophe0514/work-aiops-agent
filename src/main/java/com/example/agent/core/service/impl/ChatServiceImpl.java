@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class ChatServiceImpl implements ChatService {
@@ -20,10 +21,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public Flux<ChatEventVO> chat(String userMessage, String chatId, String userId) {
-        String conversationId = userId + "_" + chatId;
+        String conversationId = normalizeConversationId(userId, chatId);
 
         Flux<ChatEventVO> contentStream = chatClient.prompt()
-                .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversationId)) // 设置上下文记忆的ID
+                .advisors(advisors -> advisors.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .user(userMessage)
                 .stream()
                 .content()
@@ -32,5 +33,15 @@ public class ChatServiceImpl implements ChatService {
 
         return Flux.concat(contentStream, Flux.just(ChatEventVO.stop()))
                 .onErrorResume(ex -> Flux.just(ChatEventVO.error("对话生成失败，请稍后重试或联系平台支持。")));
+    }
+
+    private String normalizeConversationId(String userId, String chatId) {
+        String normalizedUserId = hasText(userId) ? userId.trim() : "anonymous";
+        String normalizedChatId = hasText(chatId) ? chatId.trim() : UUID.randomUUID().toString();
+        return normalizedUserId + "_" + normalizedChatId;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }
