@@ -1,5 +1,91 @@
 # 主题平台 AIOps Agent
 
+## Redis Stack RAG 落地说明
+
+当前项目已接入 Redis Stack 作为主题业务知识库的向量存储，核心链路如下：
+
+```text
+docs/rag/theme-business/*
+  -> KnowledgeBaseService 扫描多格式文件
+  -> 按 chunk-size / chunk-overlap 切片
+  -> DashScope text-embedding-v3 生成向量
+  -> Spring AI Redis VectorStore 写入 Redis Stack
+  -> ChatService 提问前先检索知识库
+  -> 命中则基于知识片段回答，未命中则转业务接口人
+```
+
+### 相关配置
+
+```yaml
+spring:
+  ai:
+    dashscope:
+      embedding:
+        options:
+          model: text-embedding-v3
+          dimensions: 1024
+    vectorstore:
+      redis:
+        initialize-schema: true
+        index-name: spring-ai-index
+        prefix: "embedding:"
+  data:
+    redis:
+      host: 192.168.150.101
+      password: 123456
+      port: 16379
+      client-type: jedis
+
+aiops:
+  rag:
+    knowledge-base-path: docs/rag/theme-business
+    biz-domain: theme-business
+    fallback-owner-employee-no: THEME_OPS_OWNER
+    top-k: 5
+    similarity-threshold: 0.65
+    chunk-size: 900
+    chunk-overlap: 120
+```
+
+### 导入知识库
+
+启动后调用：
+
+```bash
+curl -X POST "http://localhost:18080/admin/kb/ingest/theme-business"
+```
+
+接口会扫描 `docs/rag/theme-business` 下的以下文件类型：
+
+```text
+.md .txt .csv .tsv .json .jsonl .yaml .yml .sql
+```
+
+每个文件会被拆成多个知识片段，并写入 Redis Stack 向量索引。
+
+### 调试检索
+
+```bash
+curl "http://localhost:18080/admin/kb/search?query=主题审核通过了为什么前台看不到"
+```
+
+返回内容包含：
+
+- `content`：命中的知识片段
+- `score`：相似度分数
+- `metadata.title`：文档标题
+- `metadata.sourcePath`：来源路径
+- `metadata.chunkIndex`：片段序号
+
+### Chat 使用方式
+
+`POST /chat` 现在会先检索 Redis 向量库：
+
+- 如果命中知识片段：把片段注入本轮 prompt，让 `operationQaAgentClient` 只根据知识库回答。
+- 如果没有命中：直接返回“当前知识库没有明确说明”，并提示联系 `aiops.rag.fallback-owner-employee-no` 配置的业务接口人。
+- 如果 Redis Stack、向量索引或 Embedding 配置异常：返回 `ChatEventVO` 的 `003` 错误事件。
+
+第一版采用“文档目录即知识源”的轻量方案，方便本地调试。后续如果要做后台管理，可以再补 `kb_document`、`kb_document_chunk` 等业务表，用来管理文档版本、启停状态、所属业务域和接口人。
 本项目用于构建主题平台的智能运维 Agent，面向运营、客服、审核和开发支持人员，提供主题业务答疑、工单辅助流转、运维排障等能力。
 
 当前重点建设的是「主题业务 Agent」，对应 `operationQaAgentClient`。它负责基于系统提示词和会话上下文回答主题创作者平台的运营规则、平台功能、业务流程和常见问题。工单 Agent 和运维排障 Agent 已在代码结构中预留，后续继续扩展。

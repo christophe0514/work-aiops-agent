@@ -1,0 +1,51 @@
+{
+  "version": "2026.05",
+  "source": "theme-audit-center",
+  "codes": [
+    {
+      "code": "AUDIT_TEXT_SENSITIVE",
+      "title": "文案命中敏感词",
+      "severity": "medium",
+      "stage": "machine",
+      "operator_message": "主题名称、简介或标签中存在敏感词或诱导性表述，请修改后重新提交。",
+      "customer_message": "主题信息需要调整后才能继续审核，请根据平台规范修改名称或介绍文案。",
+      "recommended_action": ["定位命中文案字段", "替换敏感词", "删除夸大或诱导描述", "重新提交审核"]
+    },
+    {
+      "code": "AUDIT_IMAGE_RISK",
+      "title": "图片安全检测不通过",
+      "severity": "high",
+      "stage": "machine",
+      "operator_message": "封面图、预览图或资源包图片命中图片安全规则。",
+      "customer_message": "主题图片素材存在不符合平台规范的内容，请更换相关图片后重新提交。",
+      "recommended_action": ["查看命中图片", "替换违规图片", "确认资源包内图片同步替换", "重新上传素材包"]
+    },
+    {
+      "code": "AUDIT_COPYRIGHT_EXPIRED",
+      "title": "版权授权过期",
+      "severity": "high",
+      "stage": "manual",
+      "operator_message": "版权授权文件已过期，或授权有效期不能覆盖计划上架周期。",
+      "customer_message": "该主题涉及版权素材，需要补充有效授权证明后才能通过审核。",
+      "recommended_action": ["核对授权主体", "核对授权范围", "补充最新授权文件", "调整上架周期"]
+    },
+    {
+      "code": "AUDIT_PACKAGE_INVALID",
+      "title": "资源包校验失败",
+      "severity": "high",
+      "stage": "machine",
+      "operator_message": "资源包解压失败、manifest缺失、文件校验不一致或包含禁止文件类型。",
+      "customer_message": "主题资源包格式异常，请使用平台打包工具重新生成并上传。",
+      "recommended_action": ["检查zip结构", "检查manifest.json", "移除禁止文件", "重新打包上传"]
+    },
+    {
+      "code": "AUDIT_PREVIEW_MISMATCH",
+      "title": "预览图和实际效果不一致",
+      "severity": "medium",
+      "stage": "manual",
+      "operator_message": "预览图展示效果和主题实际应用效果差异明显。",
+      "customer_message": "主题预览图需要真实反映实际使用效果，请更新预览图后重新提交。",
+      "recommended_action": ["重新生成预览图", "确保预览图来自当前资源包", "复核详情页展示图"]
+    }
+  ]
+}

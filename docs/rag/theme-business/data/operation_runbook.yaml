@@ -1,0 +1,58 @@
+runbook:
+  name: "主题业务运营排查手册"
+  owner: "主题平台运营支持组"
+  version: "1.0"
+  updated_at: "2026-05-22"
+  scenarios:
+    - id: "visibility_after_approved"
+      title: "审核通过但前台不可见"
+      required_fields:
+        - themeId
+        - channel
+        - terminalType
+        - clientVersion
+      steps:
+        - "查询主题主状态，确认是否 ONLINE"
+        - "查询 publishStatus，确认是否 PUBLISHED 或 PARTIAL_PUBLISHED"
+        - "检查渠道配置是否包含用户访问入口"
+        - "检查上架开始时间和结束时间"
+        - "检查客户端版本、地域、人群、会员限制"
+        - "检查搜索索引、推荐缓存、活动页缓存"
+      escalation:
+        - condition: "超过15分钟搜索仍不可见"
+          team: "搜索平台组"
+        - condition: "详情页打不开但后台已上架"
+          team: "主题服务开发组"
+    - id: "publish_failed"
+      title: "主题上架失败"
+      required_fields:
+        - themeId
+        - publishTaskId
+      steps:
+        - "查询失败节点 failedNode"
+        - "判断是否为配置类错误"
+        - "判断是否为渠道同步错误"
+        - "判断是否为 CDN 分发错误"
+        - "如果 retryable=true，可重试发布"
+        - "如果 retryable=false，先修复业务配置"
+      escalation:
+        - condition: "商品中心同步失败"
+          team: "商品中心开发组"
+        - condition: "CDN连续重试失败"
+          team: "资源分发平台组"
+    - id: "audit_rejected"
+      title: "主题审核驳回"
+      required_fields:
+        - themeId
+        - auditId
+      steps:
+        - "查询审核阶段，是机器审核还是人工审核"
+        - "查询 rejectCode 和 rejectReason"
+        - "根据驳回原因判断是否需要补充素材、版权或文案"
+        - "确认商户是否修改了当前版本"
+        - "重新提交复审"
+      escalation:
+        - condition: "版权授权争议"
+          team: "法务和版权审核组"
+        - condition: "规则误杀"
+          team: "审核策略组"

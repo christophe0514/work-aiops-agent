@@ -1,0 +1,8 @@
+failure_node,reason_code,user_symptom,operator_explanation,retryable,owner_team
+商品中心同步,PRICE_NOT_CONFIGURED,后台显示上架失败,付费主题未配置有效价格，商品中心无法生成商品,false,商品中心开发组
+CDN分发,CDN_UPLOAD_TIMEOUT,详情页可打开但下载失败,资源包上传CDN超时，前台无法获得下载地址,true,资源分发平台组
+搜索索引,SEARCH_INDEX_DELAY,详情页能打开但搜索不到,搜索索引任务延迟或积压,true,搜索平台组
+活动页缓存,CACHE_REFRESH_PENDING,活动页暂时看不到,活动配置已发布但缓存仍在刷新,true,活动平台组
+终端资源校验,TERMINAL_PACKAGE_MISSING,某终端不可见,目标终端缺少对应资源包,false,主题平台开发组
+审核状态校验,NOT_APPROVED,无法发布,当前版本未审核通过，不能上架,false,审核平台组
+商户状态校验,MERCHANT_DISABLED,主题不可售,商户被冻结或合同过期，商品不可售,false,商户平台组

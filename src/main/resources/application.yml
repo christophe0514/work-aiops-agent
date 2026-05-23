@@ -7,6 +7,15 @@ spring:
       chat:
         options:
           model: qwen-plus
+      embedding:
+        options:
+          model: text-embedding-v3
+          dimensions: 1024
+    vectorstore:
+      redis:
+        initialize-schema: true # 初始化向量库结构
+        index-name: spring-ai-index # 索引名
+        prefix: "embedding:" # 前缀
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
@@ -15,7 +24,18 @@ spring:
   data:
     redis:
       host: 192.168.150.101
-      password: 123321
+      password: 123456
+      port: 16379 # redis-stack服务
+      client-type: jedis
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+aiops:
+  rag:
+    knowledge-base-path: docs/rag/theme-business
+    biz-domain: theme-business
+    fallback-owner-employee-no: THEME_OPS_OWNER
+    top-k: 5
+    similarity-threshold: 0.65
+    chunk-size: 900
+    chunk-overlap: 120
