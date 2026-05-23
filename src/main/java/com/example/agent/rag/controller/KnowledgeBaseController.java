@@ -3,7 +3,9 @@ package com.example.agent.rag.controller;
 import com.example.agent.rag.domain.vo.KbDocumentFileVO;
 import com.example.agent.rag.domain.vo.KbIngestResultVO;
 import com.example.agent.rag.domain.vo.KbSearchResultVO;
+import com.example.agent.rag.domain.vo.RagEvaluationReportVO;
 import com.example.agent.rag.service.KnowledgeBaseService;
+import com.example.agent.rag.service.RagEvaluationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,8 @@ import java.util.List;
 public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
+
+    private final RagEvaluationService ragEvaluationService;
 
     /**
      * 查询主题业务知识库文件列表，给前端管理台展示文件元信息。
@@ -64,5 +68,13 @@ public class KnowledgeBaseController {
     @GetMapping("/search")
     public List<KbSearchResultVO> search(@RequestParam String query) {
         return knowledgeBaseService.search(query);
+    }
+
+    /**
+     * 基于固定测试集评估 RAG 召回质量，统计 expected 文档是否出现在 TopK 结果中。
+     */
+    @GetMapping("/evaluate/theme-business")
+    public RagEvaluationReportVO evaluateThemeBusinessQueries() {
+        return ragEvaluationService.evaluateThemeBusinessQueries();
     }
 }

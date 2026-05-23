@@ -643,3 +643,35 @@ http://localhost:5173
 ```
 
 如果主题业务系统异常，Agent 不会编造主题实时状态，而是记录 `forced_queryThemeBusinessSnapshot failed` Trace 事件，并将本轮回答降级为“基于知识库规则和通用处理流程回答”。这样可以同时降低模型漏调 Tool 的风险，以及业务系统不可用导致整条对话失败的风险。
+
+## RAG 召回评测
+
+项目已提供轻量级 RAG 评测集，用于回答“知识库检索效果如何评估”的问题。测试集位于：
+
+```text
+docs/rag/theme-business/data/search_test_queries.tsv
+```
+
+每条用例包含：
+
+- `query`：运营真实问法或近似问法。
+- `expected_primary_doc`：期望优先命中的知识库文档。
+- `expected_intent`：该问题对应的业务意图。
+- `notes`：期望回答要点。
+
+评测接口：
+
+```http
+GET /admin/kb/evaluate/theme-business
+```
+
+评测逻辑：
+
+```text
+读取 search_test_queries.tsv
+  -> 对每条 query 调用 KnowledgeBaseService.search
+  -> 判断 expected_primary_doc 是否出现在 TopK 检索结果中
+  -> 输出 hitRate、missCount、averageBestScore、每条用例的 hitRank 和 bestMatchedDoc
+```
+
+这个评测主要衡量 RAG 的“召回准确性”，适合用于调整 `top-k`、`similarity-threshold`、`chunk-size`、`chunk-overlap`，以及发现文档切片或问法覆盖不足的问题。后续可以继续扩展答案质量人工评分、引用准确率和未命中问题沉淀。
