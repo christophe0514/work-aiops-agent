@@ -25,6 +25,11 @@ public class AgentRouteResultVO {
     private String agentName;
 
     /**
+     * 当前对话链路 ID，用于查询 Agent Trace。
+     */
+    private String traceId;
+
+    /**
      * 路由原因，便于前端调试和后端排查。
      */
     private String reason;

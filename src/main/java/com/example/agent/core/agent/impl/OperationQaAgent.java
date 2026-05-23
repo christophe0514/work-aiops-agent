@@ -6,6 +6,8 @@ import com.example.agent.core.domain.vo.ChatEventVO;
 import com.example.agent.rag.config.RagProperties;
 import com.example.agent.rag.domain.vo.KbSearchResultVO;
 import com.example.agent.rag.service.KnowledgeBaseService;
+import com.example.agent.trace.context.AgentTraceContext;
+import com.example.agent.trace.service.AgentTraceService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,6 +48,9 @@ public class OperationQaAgent extends AbstractAgent {
     @Resource
     private RagProperties ragProperties;
 
+    @Resource
+    private AgentTraceService agentTraceService;
+
     @Override
     public AgentCode agentCode() {
         return AgentCode.OPERATION_QA;
@@ -57,34 +62,53 @@ public class OperationQaAgent extends AbstractAgent {
     }
 
     @Override
-    public Flux<ChatEventVO> chat(String userMessage, String chatId, String userId) {
+    public Flux<ChatEventVO> chat(String userMessage, String chatId, String userId, String traceId) {
+        agentTraceService.record(traceId, agentCode().name(), agentName(), "agent", "agent_start", "running", userMessage);
         if (!StringUtils.hasText(userMessage)) {
+            agentTraceService.recordError(traceId, agentCode().name(), agentName(), "agent", "用户问题不能为空。", null);
             return Flux.just(errorEvent("用户问题不能为空。"), ChatEventVO.stop());
         }
 
         List<KbSearchResultVO> references;
         try {
             references = knowledgeBaseService.search(userMessage);
+            agentTraceService.record(traceId, agentCode().name(), agentName(), "rag", "knowledge_search", "success", references);
         } catch (Exception ex) {
+            agentTraceService.recordError(traceId, agentCode().name(), agentName(), "rag", "知识库检索失败", ex);
             return Flux.just(errorEvent("知识库检索失败，请检查 Redis Stack、向量索引和 Embedding 配置。"), ChatEventVO.stop());
         }
 
         boolean themeDataQuery = isThemeDataQuery(userMessage);
+        agentTraceService.record(traceId, agentCode().name(), agentName(), "intent", "theme_data_query_detected", "success", themeDataQuery);
         if (references.isEmpty() && !themeDataQuery) {
+            agentTraceService.record(traceId, agentCode().name(), agentName(), "fallback", "knowledge_miss_fallback", "success", buildFallbackMessage());
             return Flux.just(dataEvent(buildFallbackMessage()), ChatEventVO.stop());
         }
 
         String conversationId = normalizeConversationId(userId, chatId);
-        Flux<ChatEventVO> contentStream = chatClient.prompt()
-                .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
-                .user(buildUserPrompt(userMessage, references, themeDataQuery))
-                .stream()
-                .content()
-                .filter(Objects::nonNull)
-                .map(this::dataEvent);
+        String userPrompt = buildUserPrompt(userMessage, references, themeDataQuery);
+        agentTraceService.record(traceId, agentCode().name(), agentName(), "prompt", "user_prompt_built", "success", userPrompt);
+
+        Flux<ChatEventVO> contentStream = Flux.defer(() -> {
+                    AgentTraceContext.setTraceId(traceId);
+                    long start = System.currentTimeMillis();
+                    return chatClient.prompt()
+                            .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
+                            .user(userPrompt)
+                            .stream()
+                            .content()
+                            .filter(Objects::nonNull)
+                            .map(this::dataEvent)
+                            .doOnComplete(() -> agentTraceService.record(traceId, agentCode().name(), agentName(),
+                                    "agent", "agent_complete", "success", Map.of("durationMs", System.currentTimeMillis() - start)))
+                            .doFinally(signalType -> AgentTraceContext.clear());
+                });
 
         return appendStop(contentStream)
-                .onErrorResume(ex -> Flux.just(errorEvent("对话生成失败，请稍后重试或联系平台支持。"), ChatEventVO.stop()));
+                .onErrorResume(ex -> {
+                    agentTraceService.recordError(traceId, agentCode().name(), agentName(), "agent", "对话生成失败", ex);
+                    return Flux.just(errorEvent("对话生成失败，请稍后重试或联系平台支持。"), ChatEventVO.stop());
+                });
     }
 
     private boolean isThemeDataQuery(String userMessage) {

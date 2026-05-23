@@ -5,10 +5,15 @@ import com.example.agent.tools.ops.domain.vo.OpsAlertSummaryVO;
 import com.example.agent.tools.ops.domain.vo.OpsPipelineStatusVO;
 import com.example.agent.tools.ops.domain.vo.OpsServiceHealthVO;
 import com.example.agent.tools.ops.domain.vo.OpsTraceSummaryVO;
+import com.example.agent.trace.context.AgentTraceContext;
+import com.example.agent.trace.service.AgentTraceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * 运维排障 Agent 可调用的诊断工具。
@@ -18,6 +23,8 @@ import org.springframework.stereotype.Component;
 public class OpsDiagnosticTools {
 
     private final OpsDiagnosticClient opsDiagnosticClient;
+
+    private final AgentTraceService agentTraceService;
 
     /**
      * 查询服务健康状态。
@@ -29,7 +36,17 @@ public class OpsDiagnosticTools {
     public OpsServiceHealthVO queryServiceHealth(
             @ToolParam(description = "服务名称，例如 theme-publish-service、theme-sync-service") String serviceName,
             @ToolParam(description = "环境，例如 test、pre、prod") String env) {
-        return opsDiagnosticClient.queryServiceHealth(serviceName, env);
+        String traceId = AgentTraceContext.getTraceId();
+        long start = System.currentTimeMillis();
+        agentTraceService.recordToolCall(traceId, "OPS", "运维排障 Agent", "queryServiceHealth", args("serviceName", serviceName, "env", env));
+        try {
+            OpsServiceHealthVO result = opsDiagnosticClient.queryServiceHealth(serviceName, env);
+            agentTraceService.recordToolResult(traceId, "OPS", "运维排障 Agent", "queryServiceHealth", result, System.currentTimeMillis() - start);
+            return result;
+        } catch (RuntimeException ex) {
+            agentTraceService.recordError(traceId, "OPS", "运维排障 Agent", "tool", "queryServiceHealth 调用失败", ex);
+            throw ex;
+        }
     }
 
     /**
@@ -42,7 +59,17 @@ public class OpsDiagnosticTools {
     public OpsAlertSummaryVO queryRecentAlerts(
             @ToolParam(description = "服务名称，例如 theme-publish-service") String serviceName,
             @ToolParam(description = "时间范围，例如 最近30分钟、最近1小时") String timeRange) {
-        return opsDiagnosticClient.queryRecentAlerts(serviceName, timeRange);
+        String traceId = AgentTraceContext.getTraceId();
+        long start = System.currentTimeMillis();
+        agentTraceService.recordToolCall(traceId, "OPS", "运维排障 Agent", "queryRecentAlerts", args("serviceName", serviceName, "timeRange", timeRange));
+        try {
+            OpsAlertSummaryVO result = opsDiagnosticClient.queryRecentAlerts(serviceName, timeRange);
+            agentTraceService.recordToolResult(traceId, "OPS", "运维排障 Agent", "queryRecentAlerts", result, System.currentTimeMillis() - start);
+            return result;
+        } catch (RuntimeException ex) {
+            agentTraceService.recordError(traceId, "OPS", "运维排障 Agent", "tool", "queryRecentAlerts 调用失败", ex);
+            throw ex;
+        }
     }
 
     /**
@@ -55,7 +82,17 @@ public class OpsDiagnosticTools {
     public OpsPipelineStatusVO queryPipelineStatus(
             @ToolParam(description = "应用名称，例如 theme-publish-service") String appName,
             @ToolParam(description = "环境，例如 test、pre、prod") String env) {
-        return opsDiagnosticClient.queryPipelineStatus(appName, env);
+        String traceId = AgentTraceContext.getTraceId();
+        long start = System.currentTimeMillis();
+        agentTraceService.recordToolCall(traceId, "OPS", "运维排障 Agent", "queryPipelineStatus", args("appName", appName, "env", env));
+        try {
+            OpsPipelineStatusVO result = opsDiagnosticClient.queryPipelineStatus(appName, env);
+            agentTraceService.recordToolResult(traceId, "OPS", "运维排障 Agent", "queryPipelineStatus", result, System.currentTimeMillis() - start);
+            return result;
+        } catch (RuntimeException ex) {
+            agentTraceService.recordError(traceId, "OPS", "运维排障 Agent", "tool", "queryPipelineStatus 调用失败", ex);
+            throw ex;
+        }
     }
 
     /**
@@ -67,6 +104,29 @@ public class OpsDiagnosticTools {
     )
     public OpsTraceSummaryVO queryTraceSummary(
             @ToolParam(description = "调用链 traceId") String traceId) {
-        return opsDiagnosticClient.queryTraceSummary(traceId);
+        String agentTraceId = AgentTraceContext.getTraceId();
+        long start = System.currentTimeMillis();
+        agentTraceService.recordToolCall(agentTraceId, "OPS", "运维排障 Agent", "queryTraceSummary", args("traceId", traceId));
+        try {
+            OpsTraceSummaryVO result = opsDiagnosticClient.queryTraceSummary(traceId);
+            agentTraceService.recordToolResult(agentTraceId, "OPS", "运维排障 Agent", "queryTraceSummary", result, System.currentTimeMillis() - start);
+            return result;
+        } catch (RuntimeException ex) {
+            agentTraceService.recordError(agentTraceId, "OPS", "运维排障 Agent", "tool", "queryTraceSummary 调用失败", ex);
+            throw ex;
+        }
+    }
+
+    private Map<String, Object> args(String key, Object value) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put(key, value);
+        return args;
+    }
+
+    private Map<String, Object> args(String firstKey, Object firstValue, String secondKey, Object secondValue) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put(firstKey, firstValue);
+        args.put(secondKey, secondValue);
+        return args;
     }
 }

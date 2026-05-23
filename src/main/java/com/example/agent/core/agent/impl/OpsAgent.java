@@ -3,6 +3,8 @@ package com.example.agent.core.agent.impl;
 import com.example.agent.core.agent.AbstractAgent;
 import com.example.agent.core.agent.AgentCode;
 import com.example.agent.core.domain.vo.ChatEventVO;
+import com.example.agent.trace.context.AgentTraceContext;
+import com.example.agent.trace.service.AgentTraceService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,6 +27,9 @@ public class OpsAgent extends AbstractAgent {
     @Qualifier("opsAgentClient")
     private ChatClient opsAgentClient;
 
+    @Resource
+    private AgentTraceService agentTraceService;
+
     @Override
     public AgentCode agentCode() {
         return AgentCode.OPS;
@@ -36,22 +41,37 @@ public class OpsAgent extends AbstractAgent {
     }
 
     @Override
-    public Flux<ChatEventVO> chat(String userMessage, String chatId, String userId) {
+    public Flux<ChatEventVO> chat(String userMessage, String chatId, String userId, String traceId) {
+        agentTraceService.record(traceId, agentCode().name(), agentName(), "agent", "agent_start", "running", userMessage);
         if (!StringUtils.hasText(userMessage)) {
+            agentTraceService.recordError(traceId, agentCode().name(), agentName(), "agent", "排障问题不能为空", null);
             return Flux.just(errorEvent("排障问题不能为空，请补充服务名、环境、traceId 或异常现象。"), ChatEventVO.stop());
         }
 
         String conversationId = normalizeConversationId(userId, chatId);
-        Flux<ChatEventVO> contentStream = opsAgentClient.prompt()
-                .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
-                .user(buildUserPrompt(userMessage))
-                .stream()
-                .content()
-                .filter(Objects::nonNull)
-                .map(this::dataEvent);
+        String userPrompt = buildUserPrompt(userMessage);
+        agentTraceService.record(traceId, agentCode().name(), agentName(), "prompt", "user_prompt_built", "success", userPrompt);
+
+        Flux<ChatEventVO> contentStream = Flux.defer(() -> {
+                    AgentTraceContext.setTraceId(traceId);
+                    long start = System.currentTimeMillis();
+                    return opsAgentClient.prompt()
+                            .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
+                            .user(userPrompt)
+                            .stream()
+                            .content()
+                            .filter(Objects::nonNull)
+                            .map(this::dataEvent)
+                            .doOnComplete(() -> agentTraceService.record(traceId, agentCode().name(), agentName(),
+                                    "agent", "agent_complete", "success", java.util.Map.of("durationMs", System.currentTimeMillis() - start)))
+                            .doFinally(signalType -> AgentTraceContext.clear());
+                });
 
         return appendStop(contentStream)
-                .onErrorResume(ex -> Flux.just(errorEvent("运维排障生成失败，请稍后重试或检查模型与 Tool 配置。"), ChatEventVO.stop()));
+                .onErrorResume(ex -> {
+                    agentTraceService.recordError(traceId, agentCode().name(), agentName(), "agent", "运维排障生成失败", ex);
+                    return Flux.just(errorEvent("运维排障生成失败，请稍后重试或检查模型与 Tool 配置。"), ChatEventVO.stop());
+                });
     }
 
     private String buildUserPrompt(String userMessage) {

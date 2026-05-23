@@ -1,0 +1,9 @@
+package com.example.agent.trace.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.example.agent.trace.domain.entity.AgentTraceLog;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface AgentTraceLogMapper extends BaseMapper<AgentTraceLog> {
+}

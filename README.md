@@ -167,6 +167,43 @@ POST /admin/kb/delete/theme-business/file?path=03_audit_rules.md
 
 前端 `frontend/` 已增加“知识库管理”页面，可以直接完成文件刷新、单文件导入、单文件删除向量、全量导入和检索调试。
 
+## Agent Trace 观测体系
+
+项目已新增 Agent Trace 事件流水，用于记录一次对话从路由到 Agent 执行的关键链路。每次调用 `/chat` 时后端会生成一个 `traceId`，并通过路由 SSE 事件返回给前端或调试方。
+
+当前已记录的事件包括：
+
+- `trace_start`：一次对话链路开始，记录 userId、chatId、userMessage。
+- `route_start` / `route_result`：记录 AgentRouter 的路由输入和结构化路由结果。
+- `knowledge_search`：记录 RAG 检索命中的知识片段、score 和 metadata。
+- `theme_data_query_detected`：记录是否识别为具体主题数据查询。
+- `user_prompt_built`：记录注入 RAG / Tool 使用规则后的本轮 Prompt。
+- `*_call` / `*_result`：记录主题业务 Tool、运维诊断 Tool 的调用参数、返回结果和耗时。
+- `agent_complete` / `error`：记录 Agent 执行完成、异常原因和基础耗时。
+
+建表脚本：
+
+```bash
+docs/sql/agent_trace_log.sql
+```
+
+查询接口：
+
+```http
+GET /admin/agent-traces/{traceId}
+```
+
+示例链路：
+
+```text
+POST /chat
+  -> SSE eventType=004 route event 中获取 traceId
+  -> GET /admin/agent-traces/{traceId}
+  -> 查看 router / rag / prompt / tool / agent 全链路事件
+```
+
+Token 字段 `prompt_tokens`、`completion_tokens`、`total_tokens` 已在表结构中预留。后续如果接入模型 usage metadata 或自定义 Advisor，可以直接补齐 Token 消耗统计，并进一步接入 Prometheus / Grafana 做趋势监控。
+
 ## 主题业务 Tool
 
 当前已为 `operationQaAgentClient` 接入主题业务 Tool。它用于处理带具体主题 ID 的业务查询，例如：

@@ -24,5 +24,5 @@ public interface Agent {
     /**
      * 处理用户问题并通过 SSE 事件流返回结果。
      */
-    Flux<ChatEventVO> chat(String userMessage, String chatId, String userId);
+    Flux<ChatEventVO> chat(String userMessage, String chatId, String userId, String traceId);
 }
