@@ -1,5 +1,61 @@
 # 主题平台 AIOps Agent
 
+## LLM AgentRouter 多智能体路由
+
+当前对话入口已经升级为多智能体路由链路：
+
+```text
+用户提问
+  -> POST /chat
+  -> ChatService 调用 AgentRouter
+  -> agentRouterClient 使用大模型输出结构化路由结果
+  -> AgentRegistry 获取目标业务 Agent
+  -> OperationQaAgent / TicketAgent / OpsAgent 处理问题
+  -> ChatEventVO 通过 SSE 返回路由事件和回答内容
+```
+
+`AgentRouter` 只负责意图识别和任务分流，不直接回答业务问题。当前业务 Agent 包括：
+
+- `OperationQaAgent`：主题业务运营答疑、RAG 知识库检索、主题业务 Tool 查询。
+- `TicketAgent`：工单辅助流转，占位能力已接入，后续扩展工单摘要、优先级和分派建议。
+- `OpsAgent`：运维排障，已接入 Mock 诊断 Tool，支持服务健康、告警、流水线和 Trace 摘要联调。
+
+SSE 事件体仍使用 `ChatEventVO`，事件类型包括：
+
+- `001`：回答内容
+- `002`：流式结束
+- `003`：错误信息
+- `004`：路由信息
+
+前端对话页已支持展示当前回答来源 Agent，便于联调 LLM 路由结果。
+
+## 运维排障 Agent
+
+`OpsAgent` 已接入独立 `opsAgentClient` 和运维诊断 Tool。当前底层使用 Mock 数据，后续可以替换为真实监控、日志、Trace 或流水线平台的 HTTP 客户端。
+
+当前 Tool 包括：
+
+- `queryServiceHealth(serviceName, env)`：查询服务健康状态、错误率、P95 耗时、CPU、内存和实例状态。
+- `queryRecentAlerts(serviceName, timeRange)`：查询近期告警摘要。
+- `queryPipelineStatus(appName, env)`：查询最近一次发布流水线状态。
+- `queryTraceSummary(traceId)`：查询 Trace 调用链摘要。
+
+Mock 调试接口：
+
+```http
+GET /mock/ops/service-health?serviceName=theme-publish-service&env=prod
+GET /mock/ops/alerts?serviceName=theme-publish-service&timeRange=最近30分钟
+GET /mock/ops/pipeline?appName=theme-publish-service&env=prod
+GET /mock/ops/trace?traceId=trace-demo-001
+```
+
+适合联调的问题示例：
+
+- `theme-publish-service 在 prod 环境接口超时，帮我排查`
+- `最近30分钟 theme-publish-service 有哪些告警？`
+- `theme-publish-service 发布流水线失败了，看下原因`
+- `traceId 为 trace-demo-001 的接口为什么报错？`
+
 ## Redis Stack RAG 落地说明
 
 当前项目已接入 Redis Stack 作为主题业务知识库的向量存储，核心链路如下：
@@ -184,7 +240,7 @@ Mock 规则：
 
 ### 主题业务 Agent
 
-当前优先实现的 Agent，对应 Bean：`operationQaAgentClient`。
+当前优先实现的业务 Agent，对应实现类：`OperationQaAgent`，底层继续使用 `operationQaAgentClient`。
 
 负责：
 
@@ -203,7 +259,7 @@ is_enabled = 1
 
 ### 工单 Agent
 
-代码中已预留 `TicketAgent` Bean，尚未完成具体实现。
+代码中已接入 `TicketAgent` 占位实现，当前用于验证 AgentRouter 分流链路。
 
 规划能力：
 
@@ -215,7 +271,7 @@ is_enabled = 1
 
 ### 运维排障 Agent
 
-代码中已预留 `OpsAgent` Bean，尚未完成具体实现。
+代码中已接入 `OpsAgent` 占位实现，当前用于验证 AgentRouter 分流链路。
 
 规划能力：
 
@@ -230,11 +286,12 @@ is_enabled = 1
 用户提问
   -> POST /chat
   -> ChatController 接收 userMessage、userId、chatId
-  -> ChatService 拼接 conversationId = userId + "_" + chatId
-  -> MessageChatMemoryAdvisor 按 conversationId 读取 Redis 历史上下文
-  -> operationQaAgentClient 使用 OperationQaAgent system prompt
-  -> DashScope qwen-plus 流式生成回复
-  -> ChatEventVO 通过 text/event-stream 返回
+  -> ChatService 调用 AgentRouter
+  -> agentRouterClient 使用 LLM 输出结构化路由结果
+  -> AgentRegistry 根据 agentCode 获取目标业务 Agent
+  -> OperationQaAgent / TicketAgent / OpsAgent 处理问题
+  -> ChatEventVO 通过 text/event-stream 返回路由事件和回答内容
+  -> OperationQaAgent 通过 MessageChatMemoryAdvisor 复用 Redis 历史上下文
   -> RedisChatMemoryRepository 保存最近 20 条上下文
 ```
 
@@ -258,6 +315,14 @@ is_enabled = 1
 src/main/java/com/example
 +-- WorkAiOpsAgentApplication.java
 +-- agent/core
+|   +-- agent
+|   |   +-- Agent.java
+|   |   +-- AgentCode.java
+|   |   +-- AgentRegistry.java
+|   |   +-- AbstractAgent.java
+|   |   +-- impl/OperationQaAgent.java
+|   |   +-- impl/TicketAgent.java
+|   |   +-- impl/OpsAgent.java
 |   +-- config
 |   |   +-- AiConfig.java
 |   |   +-- ChatClientConfig.java
@@ -274,6 +339,9 @@ src/main/java/com/example
 |   |   +-- RedisChatMemoryRepository.java
 |   |   +-- MessageUtil.java
 |   |   +-- dto/MemoryMessageDTO.java
+|   +-- router
+|   |   +-- AgentRouter.java
+|   |   +-- impl/LlmAgentRouter.java
 |   +-- service
 |       +-- AiPromptService.java
 |       +-- ChatService.java

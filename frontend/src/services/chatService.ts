@@ -1,13 +1,16 @@
-import type { ChatRequest, StreamResult } from "@/types/chat";
+import type { AgentRouteResult, ChatRequest, StreamResult } from "@/types/chat";
 
 interface ChatEvent {
   eventType?: string;
   eventData?: unknown;
+  agentCode?: string;
+  agentName?: string;
 }
 
 export async function streamChat(
   request: ChatRequest,
-  onDelta: (content: string) => void
+  onDelta: (content: string) => void,
+  onRoute?: (route: AgentRouteResult) => void
 ) {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -42,19 +45,23 @@ export async function streamChat(
     buffer = parsed.rest;
 
     if (parsed.content) {
-      handleEventPayload(parsed.content, onDelta);
+      handleEventPayload(parsed.content, onDelta, onRoute);
     }
   }
 
   if (buffer) {
     const parsed = consumeEventStream(buffer, true);
     if (parsed.content) {
-      handleEventPayload(parsed.content, onDelta);
+      handleEventPayload(parsed.content, onDelta, onRoute);
     }
   }
 }
 
-function handleEventPayload(content: string, onDelta: (content: string) => void) {
+function handleEventPayload(
+  content: string,
+  onDelta: (content: string) => void,
+  onRoute?: (route: AgentRouteResult) => void
+) {
   const frames = content
     .split("\n")
     .map((item) => item.trim())
@@ -73,10 +80,27 @@ function handleEventPayload(content: string, onDelta: (content: string) => void)
       continue;
     }
 
+    if (event.eventType === "004") {
+      onRoute?.(normalizeRouteEvent(event));
+      continue;
+    }
+
     if (event.eventType === "003") {
       throw new Error(String(event.eventData ?? "对话生成失败"));
     }
   }
+}
+
+function normalizeRouteEvent(event: ChatEvent): AgentRouteResult {
+  const route = typeof event.eventData === "object" && event.eventData
+    ? event.eventData as AgentRouteResult
+    : {};
+
+  return {
+    ...route,
+    agentCode: route.agentCode ?? event.agentCode,
+    agentName: route.agentName ?? event.agentName
+  };
 }
 
 function parseChatEvent(frame: string): ChatEvent | null {

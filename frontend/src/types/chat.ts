@@ -14,6 +14,8 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   pending?: boolean;
+  agentCode?: string;
+  agentName?: string;
 }
 
 export interface ChatRequest {
@@ -25,4 +27,13 @@ export interface ChatRequest {
 export interface StreamResult {
   content: string;
   rest: string;
+}
+
+export interface AgentRouteResult {
+  agentCode?: string;
+  agentName?: string;
+  reason?: string;
+  confidence?: number;
+  needClarify?: boolean;
+  clarifyQuestion?: string | null;
 }

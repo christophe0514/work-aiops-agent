@@ -38,7 +38,7 @@ watch(
       <div class="avatar">{{ roleName[message.role].slice(0, 1) }}</div>
       <div class="bubble">
         <div class="message-head">
-          <strong>{{ roleName[message.role] }}</strong>
+          <strong>{{ message.agentName || roleName[message.role] }}</strong>
           <span v-if="message.pending" class="typing">生成中</span>
         </div>
         <div class="message-body">

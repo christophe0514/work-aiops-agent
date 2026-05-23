@@ -12,7 +12,7 @@ function createInitialMessage(chatId: string): ChatMessage {
   return {
     id: 1,
     role: "system",
-    content: `当前调试目标：主题业务 Agent。当前会话 ID：${chatId}。同一 userId + chatId 会复用 Redis 中的对话记忆。`
+    content: `当前调试目标：LLM AgentRouter 多智能体路由。当前会话 ID：${chatId}。同一 userId + chatId 会复用 Redis 中的对话记忆。`
   };
 }
 
@@ -101,6 +101,12 @@ export function useChatSession() {
             message.content += delta;
           });
           await nextTick();
+        },
+        (route) => {
+          updateAssistantMessage(assistantId, (message) => {
+            message.agentCode = route.agentCode;
+            message.agentName = route.agentName;
+          });
         }
       );
     } catch (err) {
