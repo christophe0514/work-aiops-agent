@@ -86,6 +86,30 @@ curl "http://localhost:18080/admin/kb/search?query=主题审核通过了为什�
 - 如果 Redis Stack、向量索引或 Embedding 配置异常：返回 `ChatEventVO` 的 `003` 错误事件。
 
 第一版采用“文档目录即知识源”的轻量方案，方便本地调试。后续如果要做后台管理，可以再补 `kb_document`、`kb_document_chunk` 等业务表，用来管理文档版本、启停状态、所属业务域和接口人。
+
+### 文件级管理接口
+
+为了避免每次都全量导入，后端提供了文件级调试接口：
+
+```http
+GET /admin/kb/theme-business/files
+```
+
+列出当前知识库目录下的文件、标题、类型、大小、修改时间和预计切片数。
+
+```http
+POST /admin/kb/ingest/theme-business/file?path=03_audit_rules.md
+```
+
+只导入或重建一个文件。重建前会按稳定 chunk id 删除该文件旧向量，再写入新向量。
+
+```http
+POST /admin/kb/delete/theme-business/file?path=03_audit_rules.md
+```
+
+删除某个文件对应的 Redis 向量数据，不删除本地知识库原文。
+
+前端 `frontend/` 已增加“知识库管理”页面，可以直接完成文件刷新、单文件导入、单文件删除向量、全量导入和检索调试。
 本项目用于构建主题平台的智能运维 Agent，面向运营、客服、审核和开发支持人员，提供主题业务答疑、工单辅助流转、运维排障等能力。
 
 当前重点建设的是「主题业务 Agent」，对应 `operationQaAgentClient`。它负责基于系统提示词和会话上下文回答主题创作者平台的运营规则、平台功能、业务流程和常见问题。工单 Agent 和运维排障 Agent 已在代码结构中预留，后续继续扩展。

@@ -39,3 +39,5 @@ aiops:
     similarity-threshold: 0.65
     chunk-size: 900
     chunk-overlap: 120
+    embedding-batch-size: 10
+    max-delete-chunks-per-file: 2000

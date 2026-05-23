@@ -67,6 +67,26 @@ http://localhost:5173
 
 当前页面支持配置 `userId` 和 `chatId`。后端会使用 `userId_chatId` 作为 Redis 会话记忆 key 的业务部分，同一组合会复用上下文。
 
+## 知识库管理
+
+前端已内置“知识库管理”标签页，用于调试 Redis Stack RAG：
+
+- 刷新 `docs/rag/theme-business` 文件列表
+- 单文件导入或重建向量
+- 删除单文件对应向量
+- 全量导入
+- 通过问题检索命中的知识片段
+
+对应后端接口：
+
+```text
+GET  /api/admin/kb/theme-business/files
+POST /api/admin/kb/ingest/theme-business
+POST /api/admin/kb/ingest/theme-business/file?path=...
+POST /api/admin/kb/delete/theme-business/file?path=...
+GET  /api/admin/kb/search?query=...
+```
+
 ## 构建检查
 
 ```bash

@@ -1,6 +1,7 @@
 package com.example.agent.core.service.impl;
 
 import com.example.agent.core.config.RagProperties;
+import com.example.agent.core.domain.vo.KbDocumentFileVO;
 import com.example.agent.core.domain.vo.KbIngestResultVO;
 import com.example.agent.core.domain.vo.KbSearchResultVO;
 import com.example.agent.core.service.KnowledgeBaseService;
@@ -26,10 +27,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * 基于本地文件的知识库实现，用于 Redis Stack RAG 第一版。
+ *
+ * <p>当前服务将 {@code docs/rag/theme-business} 作为知识源，将文件切片后写入
+ * Spring AI Redis VectorStore。这里先保持轻量，不引入数据库文档管理表，方便本地快速调试。
+ */
 @Service
 @RequiredArgsConstructor
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
+    /**
+     * 主题业务知识库支持导入的源文件格式。
+     */
     private static final List<String> SUPPORTED_EXTENSIONS = List.of(
             ".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml", ".sql"
     );
@@ -39,8 +49,27 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final RagProperties ragProperties;
 
     @Override
+    public List<KbDocumentFileVO> listThemeBusinessKnowledgeFiles() {
+        Path basePath = getBasePath();
+        if (!Files.exists(basePath)) {
+            return List.of();
+        }
+
+        try (Stream<Path> paths = Files.walk(basePath)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(this::isSupportedFile)
+                    .sorted(Comparator.comparing(Path::toString))
+                    .map(file -> toFileVO(basePath, file))
+                    .toList();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to list knowledge base files.", ex);
+        }
+    }
+
+    @Override
     public KbIngestResultVO ingestThemeBusinessKnowledge() {
-        Path basePath = Path.of(ragProperties.getKnowledgeBasePath()).toAbsolutePath().normalize();
+        Path basePath = getBasePath();
         if (!Files.exists(basePath)) {
             return KbIngestResultVO.builder()
                     .knowledgeBasePath(basePath.toString())
@@ -51,6 +80,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         List<Document> documents = new ArrayList<>();
         int fileCount = 0;
 
+        // 全量导入主要用于首次初始化，日常调试建议优先使用单文件重建。
         try (Stream<Path> paths = Files.walk(basePath)) {
             List<Path> files = paths
                     .filter(Files::isRegularFile)
@@ -70,9 +100,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new IllegalStateException("Failed to ingest knowledge base files.", ex);
         }
 
-        if (!documents.isEmpty()) {
-            vectorStore.add(documents);
-        }
+        addDocumentsInBatches(documents);
 
         return KbIngestResultVO.builder()
                 .knowledgeBasePath(basePath.toString())
@@ -83,11 +111,59 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     @Override
+    public KbIngestResultVO ingestThemeBusinessKnowledgeFile(String path) {
+        Path basePath = getBasePath();
+        Path file = resolveKnowledgeFile(basePath, path);
+
+        if (!Files.exists(file) || !Files.isRegularFile(file) || !isSupportedFile(file)) {
+            return KbIngestResultVO.builder()
+                    .knowledgeBasePath(basePath.toString())
+                    .fileCount(0)
+                    .chunkCount(0)
+                    .message("Knowledge base file does not exist or is not supported.")
+                    .build();
+        }
+
+        // 单文件重建前必须先清理旧切片，否则检索时可能命中过期规则。
+        deleteBySourcePath(toRelativePath(basePath, file));
+
+        try {
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            List<Document> documents = StringUtils.hasText(content) ? toDocuments(basePath, file, content) : List.of();
+            addDocumentsInBatches(documents);
+            return KbIngestResultVO.builder()
+                    .knowledgeBasePath(basePath.toString())
+                    .fileCount(documents.isEmpty() ? 0 : 1)
+                    .chunkCount(documents.size())
+                    .message("Knowledge base file ingested into Redis VectorStore.")
+                    .build();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to ingest knowledge base file.", ex);
+        }
+    }
+
+    @Override
+    public KbIngestResultVO deleteThemeBusinessKnowledgeFile(String path) {
+        Path basePath = getBasePath();
+        Path file = resolveKnowledgeFile(basePath, path);
+        String relativePath = toRelativePath(basePath, file);
+        deleteBySourcePath(relativePath);
+
+        return KbIngestResultVO.builder()
+                .knowledgeBasePath(basePath.toString())
+                .fileCount(1)
+                .chunkCount(0)
+                .message("Knowledge base vectors deleted for " + relativePath + ".")
+                .build();
+    }
+
+    @Override
     public List<KbSearchResultVO> search(String query) {
         if (!StringUtils.hasText(query)) {
             return List.of();
         }
 
+        // 管理台调试检索和 ChatService 回答前检索使用同一套参数，便于排查命中差异。
         SearchRequest request = SearchRequest.builder()
                 .query(query)
                 .topK(ragProperties.getTopK())
@@ -105,7 +181,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private List<Document> toDocuments(Path basePath, Path file, String content) {
-        String relativePath = basePath.relativize(file).toString().replace('\\', '/');
+        String relativePath = toRelativePath(basePath, file);
         String title = resolveTitle(file, content);
         List<String> chunks = splitContent(content);
         List<Document> documents = new ArrayList<>();
@@ -119,10 +195,71 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             metadata.put("ownerEmployeeNo", ragProperties.getFallbackOwnerEmployeeNo());
             metadata.put("fileType", getExtension(file));
 
+            // 使用稳定 ID 可以按文件删除和重建向量，不依赖 Redis 元数据过滤能力。
             String id = stableId(relativePath + "#" + i);
             documents.add(new Document(id, chunks.get(i), metadata));
         }
         return documents;
+    }
+
+    private void addDocumentsInBatches(List<Document> documents) {
+        if (documents.isEmpty()) {
+            return;
+        }
+
+        // DashScope embedding 单批输入不能超过 10，这里对配置值做强制保护。
+        int batchSize = Math.max(1, Math.min(ragProperties.getEmbeddingBatchSize(), 10));
+        for (int start = 0; start < documents.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, documents.size());
+            vectorStore.add(documents.subList(start, end));
+        }
+    }
+
+    private void deleteBySourcePath(String sourcePath) {
+        List<String> ids = new ArrayList<>();
+        int maxDeleteChunks = Math.max(1, ragProperties.getMaxDeleteChunksPerFile());
+        // RedisVectorStore 只有被索引的元数据字段才能过滤删除；这里用稳定 ID 删除更可控。
+        for (int i = 0; i < maxDeleteChunks; i++) {
+            ids.add(stableId(sourcePath + "#" + i));
+        }
+        vectorStore.delete(ids);
+    }
+
+    private KbDocumentFileVO toFileVO(Path basePath, Path file) {
+        try {
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            return KbDocumentFileVO.builder()
+                    .path(toRelativePath(basePath, file))
+                    .title(resolveTitle(file, content))
+                    .fileType(getExtension(file))
+                    .size(Files.size(file))
+                    .lastModified(Files.getLastModifiedTime(file).toMillis())
+                    .chunkCount(splitContent(content).size())
+                    .build();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to read knowledge base file metadata.", ex);
+        }
+    }
+
+    private Path getBasePath() {
+        return Path.of(ragProperties.getKnowledgeBasePath()).toAbsolutePath().normalize();
+    }
+
+    private Path resolveKnowledgeFile(Path basePath, String path) {
+        if (!StringUtils.hasText(path)) {
+            throw new IllegalArgumentException("Knowledge file path must not be empty.");
+        }
+
+        Path resolved = basePath.resolve(path).normalize();
+        // 防止调用方通过 ../../application.yml 这类路径逃逸知识库目录。
+        if (!resolved.startsWith(basePath)) {
+            throw new IllegalArgumentException("Knowledge file path is outside base directory.");
+        }
+        return resolved;
+    }
+
+    private String toRelativePath(Path basePath, Path file) {
+        return basePath.relativize(file.toAbsolutePath().normalize()).toString().replace('\\', '/');
     }
 
     private List<String> splitContent(String content) {
@@ -131,6 +268,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         int overlap = Math.max(0, Math.min(ragProperties.getChunkOverlap(), chunkSize / 2));
         List<String> chunks = new ArrayList<>();
 
+        // 切片大小服务于 embedding，同时尽量优先选择自然文本边界。
         int start = 0;
         while (start < normalized.length()) {
             int maxEnd = Math.min(normalized.length(), start + chunkSize);
@@ -151,6 +289,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (maxEnd >= content.length()) {
             return content.length();
         }
+        // 优先按段落或换行切分，通常比硬截断字符更适合后续检索和引用展示。
         int paragraphEnd = content.lastIndexOf("\n\n", maxEnd);
         if (paragraphEnd > start + 200) {
             return paragraphEnd;
