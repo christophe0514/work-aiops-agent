@@ -110,6 +110,61 @@ POST /admin/kb/delete/theme-business/file?path=03_audit_rules.md
 删除某个文件对应的 Redis 向量数据，不删除本地知识库原文。
 
 前端 `frontend/` 已增加“知识库管理”页面，可以直接完成文件刷新、单文件导入、单文件删除向量、全量导入和检索调试。
+
+## 主题业务 Tool
+
+当前已为 `operationQaAgentClient` 接入主题业务 Tool。它用于处理带具体主题 ID 的业务查询，例如：
+
+- 查询主题当前状态
+- 查询审核状态
+- 查询上架状态
+- 查询前台不可见原因
+- 查询最近驳回原因
+
+### 代码结构
+
+```text
+ThemeBusinessTools
+  -> ThemeBusinessClient
+  -> MockThemeBusinessClient
+```
+
+- `ThemeBusinessTools`：暴露给大模型调用的 Spring AI Tool。
+- `ThemeBusinessClient`：主题业务服务客户端抽象，后续真实 HTTP 对接只需要替换这个接口实现。
+- `MockThemeBusinessClient`：当前模拟主题业务服务返回。
+
+### 当前 Tool
+
+```text
+queryThemeBusinessSnapshot(themeId)
+```
+
+返回主题业务快照，包括：
+
+- 主题主状态
+- 审核状态
+- 上架状态
+- 可见渠道
+- 当前原因说明
+- 运营处理建议
+- 最近审核记录
+
+### Mock 调试接口
+
+开发阶段可以不经过大模型，直接查看模拟业务数据：
+
+```bash
+curl "http://localhost:18080/mock/theme-business/snapshot?themeId=theme_10001"
+```
+
+Mock 规则：
+
+- `themeId` 以 `2` 结尾：模拟审核驳回
+- `themeId` 以 `3` 结尾：模拟上架失败
+- `themeId` 以 `404` 结尾：模拟未查询到主题
+- 其他：模拟已上架
+
+后续对接真实主题业务服务时，建议新增 `HttpThemeBusinessClient`，通过配置切换 Mock/HTTP 实现，保持 `ThemeBusinessTools` 不变。
 本项目用于构建主题平台的智能运维 Agent，面向运营、客服、审核和开发支持人员，提供主题业务答疑、工单辅助流转、运维排障等能力。
 
 当前重点建设的是「主题业务 Agent」，对应 `operationQaAgentClient`。它负责基于系统提示词和会话上下文回答主题创作者平台的运营规则、平台功能、业务流程和常见问题。工单 Agent 和运维排障 Agent 已在代码结构中预留，后续继续扩展。
