@@ -258,28 +258,48 @@ is_enabled = 1
 src/main/java/com/example
 +-- WorkAiOpsAgentApplication.java
 +-- agent/core
-    +-- config
-    |   +-- AiConfig.java
-    |   +-- ChatClientConfig.java
-    |   +-- PromptManager.java
-    +-- controller
-    |   +-- ChatController.java
-    +-- domain
-    |   +-- dto/ChatMessageDTO.java
-    |   +-- entity/AiPromptConfig.java
-    |   +-- vo/ChatEventVO.java
-    +-- mapper
-    |   +-- AiPromptConfigMapper.java
-    +-- memory
-    |   +-- RedisChatMemoryRepository.java
-    |   +-- MessageUtil.java
-    |   +-- dto/MemoryMessageDTO.java
-    +-- service
-        +-- AiPromptService.java
-        +-- ChatService.java
-        +-- impl
-            +-- AiPromptServiceImpl.java
-            +-- ChatServiceImpl.java
+|   +-- config
+|   |   +-- AiConfig.java
+|   |   +-- ChatClientConfig.java
+|   |   +-- PromptManager.java
+|   +-- controller
+|   |   +-- ChatController.java
+|   +-- domain
+|   |   +-- dto/ChatMessageDTO.java
+|   |   +-- entity/AiPromptConfig.java
+|   |   +-- vo/ChatEventVO.java
+|   +-- mapper
+|   |   +-- AiPromptConfigMapper.java
+|   +-- memory
+|   |   +-- RedisChatMemoryRepository.java
+|   |   +-- MessageUtil.java
+|   |   +-- dto/MemoryMessageDTO.java
+|   +-- service
+|       +-- AiPromptService.java
+|       +-- ChatService.java
+|       +-- impl
+|           +-- AiPromptServiceImpl.java
+|           +-- ChatServiceImpl.java
++-- agent/rag
+|   +-- config/RagProperties.java
+|   +-- controller/KnowledgeBaseController.java
+|   +-- domain/vo
+|   |   +-- KbDocumentFileVO.java
+|   |   +-- KbIngestResultVO.java
+|   |   +-- KbSearchResultVO.java
+|   +-- service
+|       +-- KnowledgeBaseService.java
+|       +-- impl/KnowledgeBaseServiceImpl.java
++-- agent/tools
+    +-- theme
+        +-- ThemeBusinessTools.java
+        +-- controller/ThemeBusinessMockController.java
+        +-- client
+        |   +-- ThemeBusinessClient.java
+        |   +-- impl/MockThemeBusinessClient.java
+        +-- domain/vo
+            +-- ThemeAuditRecordVO.java
+            +-- ThemeBusinessSnapshotVO.java
 ```
 
 ## 配置说明

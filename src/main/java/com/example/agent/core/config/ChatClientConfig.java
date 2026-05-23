@@ -1,6 +1,6 @@
 package com.example.agent.core.config;
 
-import com.example.agent.core.tool.ThemeBusinessTools;
+import com.example.agent.tools.theme.ThemeBusinessTools;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;

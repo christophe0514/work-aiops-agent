@@ -1,6 +1,7 @@
 package com.example.agent.core.config;
 
 import com.example.agent.core.memory.RedisChatMemoryRepository;
+import com.example.agent.rag.config.RagProperties;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -11,14 +12,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 用于存放AI工程的公共底座能力，如上下文管理、日志增强等
+ * AI 工程公共底座配置，例如日志增强、上下文记忆和 RAG 参数绑定。
  */
 @Configuration
 @EnableConfigurationProperties(RagProperties.class)
 public class AiConfig {
 
     /**
-     * 日志记录器
+     * Spring AI 简单日志增强器，用于观察模型请求和响应。
      */
     @Bean
     public SimpleLoggerAdvisor loggerAdvisor() {
@@ -26,7 +27,7 @@ public class AiConfig {
     }
 
     /**
-     * Redis上下文存储实现
+     * Redis 上下文存储实现。
      */
     @Bean
     public ChatMemoryRepository redisChatMemoryRepository() {
@@ -34,7 +35,7 @@ public class AiConfig {
     }
 
     /**
-     * 上下文记忆
+     * 会话窗口记忆，限制注入模型的历史消息数量。
      */
     @Bean
     public ChatMemory chatMemory(ChatMemoryRepository chatMemoryRepository) {
@@ -42,7 +43,7 @@ public class AiConfig {
     }
 
     /**
-     * 上下文记忆存储增强
+     * 将会话记忆挂载到 ChatClient 的 Advisor。
      */
     @Bean
     public MessageChatMemoryAdvisor messageChatMemoryAdvisor(ChatMemory chatMemory) {

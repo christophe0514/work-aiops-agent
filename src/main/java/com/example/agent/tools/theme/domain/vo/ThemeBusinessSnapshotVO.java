@@ -1,4 +1,4 @@
-package com.example.agent.core.domain.vo;
+package com.example.agent.tools.theme.domain.vo;
 
 import lombok.Builder;
 import lombok.Data;
@@ -45,7 +45,7 @@ public class ThemeBusinessSnapshotVO {
     private String publishStatus;
 
     /**
-     * 可见渠道，例如 Android、iOS、主题商店首页。
+     * 可见渠道，例如 Android 主题商店、搜索页、创作者主页。
      */
     private List<String> visibleChannels;
 

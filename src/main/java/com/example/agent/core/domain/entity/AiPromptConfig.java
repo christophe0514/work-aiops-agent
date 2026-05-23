@@ -37,3 +37,4 @@ public class AiPromptConfig {
 
     private LocalDateTime updatedTime;
 }
+

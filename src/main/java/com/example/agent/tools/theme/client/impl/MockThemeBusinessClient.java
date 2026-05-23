@@ -1,8 +1,8 @@
-package com.example.agent.core.client.impl;
+package com.example.agent.tools.theme.client.impl;
 
-import com.example.agent.core.client.ThemeBusinessClient;
-import com.example.agent.core.domain.vo.ThemeAuditRecordVO;
-import com.example.agent.core.domain.vo.ThemeBusinessSnapshotVO;
+import com.example.agent.tools.theme.client.ThemeBusinessClient;
+import com.example.agent.tools.theme.domain.vo.ThemeAuditRecordVO;
+import com.example.agent.tools.theme.domain.vo.ThemeBusinessSnapshotVO;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.example.agent.core.domain.vo;
+package com.example.agent.rag.domain.vo;
 
 import lombok.Builder;
 import lombok.Data;
@@ -17,3 +17,4 @@ public class KbSearchResultVO {
 
     private Map<String, Object> metadata;
 }
+

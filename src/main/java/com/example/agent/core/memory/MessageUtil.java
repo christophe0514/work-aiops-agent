@@ -2,42 +2,40 @@ package com.example.agent.core.memory;
 
 import cn.hutool.json.JSONUtil;
 import com.example.agent.core.memory.dto.MemoryMessageDTO;
-import org.springframework.ai.chat.messages.*;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 消息转换工具类，提供消息对象与JSON字符串之间的转换功能，主要用于Redis存储格式转换
+ * Spring AI 消息与 Redis JSON 存储格式之间的转换工具。
  */
 public class MessageUtil {
 
-    // 工具类私有化构造方法
-    private MessageUtil() {}
+    private MessageUtil() {
+    }
 
     /**
-     * 将Message对象转换为Redis存储格式的JSON字符串
+     * 将 Spring AI Message 转换为 Redis 中保存的 JSON 字符串。
      *
-     * @param message 需要转换的原始消息对象
-     * @return 符合Redis存储规范的JSON字符串
+     * @param message 原始消息对象
+     * @return JSON 字符串
      */
     public static String toJson(Message message) {
         MemoryMessageDTO memoryMessageDTO = MemoryMessageDTO.builder()
                 // USER / ASSISTANT / SYSTEM / TOOL
                 .type(message.getMessageType().name())
-
-                // 消息内容
+                // 消息文本内容
                 .content(message.getText())
-
-                // metadata
                 .metadata(message.getMetadata())
-
-                // 创建时间
                 .createTime(LocalDateTime.now())
-
                 .build();
 
-        // ToolMessage 特殊处理
         if (message instanceof ToolResponseMessage toolResponseMessage) {
             memoryMessageDTO.setToolResponse(JSONUtil.toJsonStr(toolResponseMessage));
         }
@@ -46,11 +44,10 @@ public class MessageUtil {
     }
 
     /**
-     * 将Redis存储的JSON字符串反序列化为对应的Message对象
+     * 将 Redis 中保存的 JSON 字符串反序列化为 Spring AI Message。
      *
-     * @param json Redis存储的JSON格式消息数据
-     * @return 对应类型的Message对象
-     * @throws RuntimeException 当无法识别的消息类型时抛出异常
+     * @param json Redis 中保存的消息 JSON
+     * @return Spring AI Message
      */
     public static Message toMessage(String json) {
         try {
@@ -58,28 +55,14 @@ public class MessageUtil {
             MessageType messageType = MessageType.valueOf(memoryMessageDTO.getType());
 
             return switch (messageType) {
-
-                case USER ->
-                        new UserMessage(memoryMessageDTO.getContent());
-
-                case ASSISTANT ->
-                        new AssistantMessage(memoryMessageDTO.getContent());
-
-                case SYSTEM ->
-                        new SystemMessage(memoryMessageDTO.getContent());
-
-                case TOOL ->
-                        new ToolResponseMessage(List.of());
-                default ->
-                        throw new IllegalArgumentException(
-                                "unknown message type"
-                        );
+                case USER -> new UserMessage(memoryMessageDTO.getContent());
+                case ASSISTANT -> new AssistantMessage(memoryMessageDTO.getContent());
+                case SYSTEM -> new SystemMessage(memoryMessageDTO.getContent());
+                case TOOL -> new ToolResponseMessage(List.of());
+                default -> throw new IllegalArgumentException("unknown message type");
             };
         } catch (Exception e) {
-            throw new RuntimeException(
-                    "message deserialize failed",
-                    e
-            );
+            throw new RuntimeException("message deserialize failed", e);
         }
     }
 }

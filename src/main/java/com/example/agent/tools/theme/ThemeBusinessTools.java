@@ -1,7 +1,7 @@
-package com.example.agent.core.tool;
+package com.example.agent.tools.theme;
 
-import com.example.agent.core.client.ThemeBusinessClient;
-import com.example.agent.core.domain.vo.ThemeBusinessSnapshotVO;
+import com.example.agent.tools.theme.client.ThemeBusinessClient;
+import com.example.agent.tools.theme.domain.vo.ThemeBusinessSnapshotVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;

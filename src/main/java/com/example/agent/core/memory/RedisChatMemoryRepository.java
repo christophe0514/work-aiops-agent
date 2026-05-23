@@ -10,13 +10,19 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 基于 Redis 的 Spring AI 会话记忆存储。
+ */
 public class RedisChatMemoryRepository implements ChatMemoryRepository {
+
     private static final String KEY_PREFIX = "aiops:chat:";
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    // 获取所有的对话
+    /**
+     * 查询所有会话 ID。
+     */
     @Override
     public List<String> findConversationIds() {
         Set<String> keys = stringRedisTemplate.keys(KEY_PREFIX + "*");
@@ -26,7 +32,9 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
         return keys.stream().map(key -> key.replace(KEY_PREFIX, "")).toList();
     }
 
-    // 根据对话ID获取某一条对话的上下文
+    /**
+     * 根据会话 ID 查询历史消息。
+     */
     @Override
     public List<Message> findByConversationId(String conversationId) {
         String key = getKey(conversationId);
@@ -39,16 +47,16 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
     }
 
     /**
-     * 保存对话上下文
+     * 保存某个会话的完整上下文窗口。
      *
-     * @param conversationId 对话ID
-     * @param messages       全量的上下文
+     * @param conversationId 会话 ID
+     * @param messages       完整消息列表
      */
     @Override
     public void saveAll(String conversationId, List<Message> messages) {
         String key = getKey(conversationId);
 
-        // 删除旧的上下文
+        // Spring AI 传入的是当前窗口完整消息，因此先删除旧列表，再写入新列表。
         stringRedisTemplate.delete(key);
 
         List<String> messageJsonList = messages.stream()
@@ -59,7 +67,9 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
                 .rightPushAll(key, messageJsonList);
     }
 
-    // 根据对话ID删除对话
+    /**
+     * 根据会话 ID 删除历史消息。
+     */
     @Override
     public void deleteByConversationId(String conversationId) {
         String key = getKey(conversationId);

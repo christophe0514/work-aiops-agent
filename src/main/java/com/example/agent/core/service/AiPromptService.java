@@ -5,3 +5,6 @@ import com.example.agent.core.domain.entity.AiPromptConfig;
 
 public interface AiPromptService extends IService<AiPromptConfig> {
 }
+
+
+

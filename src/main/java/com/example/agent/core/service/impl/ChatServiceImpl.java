@@ -1,10 +1,10 @@
 package com.example.agent.core.service.impl;
 
-import com.example.agent.core.config.RagProperties;
 import com.example.agent.core.domain.vo.ChatEventVO;
-import com.example.agent.core.domain.vo.KbSearchResultVO;
 import com.example.agent.core.service.ChatService;
-import com.example.agent.core.service.KnowledgeBaseService;
+import com.example.agent.rag.config.RagProperties;
+import com.example.agent.rag.domain.vo.KbSearchResultVO;
+import com.example.agent.rag.service.KnowledgeBaseService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;

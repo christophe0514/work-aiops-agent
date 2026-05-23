@@ -1,4 +1,4 @@
-package com.example.agent.core.config;
+package com.example.agent.rag.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

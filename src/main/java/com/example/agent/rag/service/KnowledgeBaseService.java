@@ -1,8 +1,8 @@
-package com.example.agent.core.service;
+package com.example.agent.rag.service;
 
-import com.example.agent.core.domain.vo.KbIngestResultVO;
-import com.example.agent.core.domain.vo.KbDocumentFileVO;
-import com.example.agent.core.domain.vo.KbSearchResultVO;
+import com.example.agent.rag.domain.vo.KbDocumentFileVO;
+import com.example.agent.rag.domain.vo.KbIngestResultVO;
+import com.example.agent.rag.domain.vo.KbSearchResultVO;
 
 import java.util.List;
 

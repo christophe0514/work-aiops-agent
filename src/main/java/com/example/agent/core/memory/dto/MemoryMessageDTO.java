@@ -15,58 +15,62 @@ import java.util.Map;
 public class MemoryMessageDTO {
 
     /**
-     * USER / ASSISTANT / SYSTEM / TOOL
+     * 消息类型：USER / ASSISTANT / SYSTEM / TOOL。
      */
     private String type;
 
     /**
-     * 消息内容
+     * 消息内容。
      */
     private String content;
 
     /**
-     * tool 调用名称
-     * queryThemeStatus
+     * Tool 调用名称，例如 queryThemeBusinessSnapshot。
      */
     private String toolName;
 
     /**
-     * tool 调用参数
+     * Tool 调用参数。
      */
     private String toolArguments;
 
     /**
-     * tool 返回结果
+     * Tool 返回结果。
      */
     private String toolResponse;
 
     /**
-     * reasoning/thinking
-     * 深度思考内容
+     * 模型推理内容，部分模型会返回 reasoning/thinking 字段。
      */
     private String reasoningContent;
 
     /**
-     * token usage
+     * prompt token 数量。
      */
     private Integer promptTokens;
 
+    /**
+     * completion token 数量。
+     */
     private Integer completionTokens;
 
+    /**
+     * 总 token 数量。
+     */
     private Integer totalTokens;
 
     /**
-     * 模型名称
+     * 模型名称。
      */
     private String model;
 
     /**
-     * 扩展 metadata
+     * Spring AI 消息元数据。
      */
     private Map<String, Object> metadata;
 
     /**
-     * 创建时间
+     * 写入记忆的时间。
      */
     private LocalDateTime createTime;
 }

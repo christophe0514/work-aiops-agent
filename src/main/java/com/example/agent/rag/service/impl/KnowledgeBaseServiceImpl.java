@@ -1,10 +1,10 @@
-package com.example.agent.core.service.impl;
+package com.example.agent.rag.service.impl;
 
-import com.example.agent.core.config.RagProperties;
-import com.example.agent.core.domain.vo.KbDocumentFileVO;
-import com.example.agent.core.domain.vo.KbIngestResultVO;
-import com.example.agent.core.domain.vo.KbSearchResultVO;
-import com.example.agent.core.service.KnowledgeBaseService;
+import com.example.agent.rag.config.RagProperties;
+import com.example.agent.rag.domain.vo.KbDocumentFileVO;
+import com.example.agent.rag.domain.vo.KbIngestResultVO;
+import com.example.agent.rag.domain.vo.KbSearchResultVO;
+import com.example.agent.rag.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -218,6 +218,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private void deleteBySourcePath(String sourcePath) {
         List<String> ids = new ArrayList<>();
         int maxDeleteChunks = Math.max(1, ragProperties.getMaxDeleteChunksPerFile());
+
         // RedisVectorStore 只有被索引的元数据字段才能过滤删除；这里用稳定 ID 删除更可控。
         for (int i = 0; i < maxDeleteChunks; i++) {
             ids.add(stableId(sourcePath + "#" + i));
@@ -289,6 +290,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (maxEnd >= content.length()) {
             return content.length();
         }
+
         // 优先按段落或换行切分，通常比硬截断字符更适合后续检索和引用展示。
         int paragraphEnd = content.lastIndexOf("\n\n", maxEnd);
         if (paragraphEnd > start + 200) {

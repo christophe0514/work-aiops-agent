@@ -1,6 +1,6 @@
-package com.example.agent.core.client;
+package com.example.agent.tools.theme.client;
 
-import com.example.agent.core.domain.vo.ThemeBusinessSnapshotVO;
+import com.example.agent.tools.theme.domain.vo.ThemeBusinessSnapshotVO;
 
 /**
  * 主题业务服务客户端抽象。

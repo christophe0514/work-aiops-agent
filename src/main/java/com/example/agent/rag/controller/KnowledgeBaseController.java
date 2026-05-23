@@ -1,9 +1,9 @@
-package com.example.agent.core.controller;
+package com.example.agent.rag.controller;
 
-import com.example.agent.core.domain.vo.KbIngestResultVO;
-import com.example.agent.core.domain.vo.KbDocumentFileVO;
-import com.example.agent.core.domain.vo.KbSearchResultVO;
-import com.example.agent.core.service.KnowledgeBaseService;
+import com.example.agent.rag.domain.vo.KbDocumentFileVO;
+import com.example.agent.rag.domain.vo.KbIngestResultVO;
+import com.example.agent.rag.domain.vo.KbSearchResultVO;
+import com.example.agent.rag.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

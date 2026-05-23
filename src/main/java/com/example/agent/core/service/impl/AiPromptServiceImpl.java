@@ -9,3 +9,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiPromptServiceImpl extends ServiceImpl<AiPromptConfigMapper, AiPromptConfig> implements AiPromptService {
 }
+
+
+
