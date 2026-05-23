@@ -626,3 +626,20 @@ http://localhost:5173
 - 为知识库无命中场景增加后端硬兜底。
 - 完成 `TicketAgent` 和 `OpsAgent` 的 ChatClient 配置和专属 Prompt。
 - 增加会话清理接口，支持按 `userId/chatId` 删除 Redis 历史上下文。
+
+## Tool 调用稳定性治理
+
+项目已针对主题状态、审核、上架、失败原因等确定性业务查询补充“规则识别 + Tool 强制调用 + 降级兜底”策略。
+
+对于 `theme_10003 为什么上架失败`、`主题 10001 前台为什么不可见` 这类“包含主题 ID + 询问状态/审核/上架/失败原因”的问题，`OperationQaAgent` 不再完全依赖模型自主 Tool Calling，而是先在代码侧识别主题数据查询意图并提取主题 ID，然后强制调用 `ThemeBusinessClient#queryThemeBusinessSnapshot` 获取业务快照。
+
+```text
+用户问题
+  -> OperationQaAgent 识别 themeDataQuery
+  -> 提取 themeId
+  -> 强制查询主题业务快照
+  -> 将快照结果与 RAG 命中片段一起注入 Prompt
+  -> 大模型基于实时业务数据 + 规则知识生成答复
+```
+
+如果主题业务系统异常，Agent 不会编造主题实时状态，而是记录 `forced_queryThemeBusinessSnapshot failed` Trace 事件，并将本轮回答降级为“基于知识库规则和通用处理流程回答”。这样可以同时降低模型漏调 Tool 的风险，以及业务系统不可用导致整条对话失败的风险。

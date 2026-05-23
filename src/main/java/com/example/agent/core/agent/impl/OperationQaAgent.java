@@ -6,6 +6,8 @@ import com.example.agent.core.domain.vo.ChatEventVO;
 import com.example.agent.rag.config.RagProperties;
 import com.example.agent.rag.domain.vo.KbSearchResultVO;
 import com.example.agent.rag.service.KnowledgeBaseService;
+import com.example.agent.tools.theme.client.ThemeBusinessClient;
+import com.example.agent.tools.theme.domain.vo.ThemeBusinessSnapshotVO;
 import com.example.agent.trace.context.AgentTraceContext;
 import com.example.agent.trace.service.AgentTraceService;
 import jakarta.annotation.Resource;
@@ -18,6 +20,8 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -30,13 +34,15 @@ import java.util.stream.Collectors;
 public class OperationQaAgent extends AbstractAgent {
 
     /**
-     * 具体主题查询常见关键词。命中这类问题时，即使 RAG 没有结果，也允许模型继续调用主题业务 Tool。
+     * 具体主题查询常见关键词。命中这类问题时，即使 RAG 没有结果，也允许继续处理主题业务数据查询。
      */
     private static final Pattern THEME_DATA_QUERY_PATTERN = Pattern.compile(
             "(主题|theme|资源包).*(状态|审核|上架|下架|可见|驳回|失败|原因|同步)|" +
                     "(状态|审核|上架|下架|可见|驳回|失败|原因|同步).*(主题|theme|资源包)",
             Pattern.CASE_INSENSITIVE
     );
+
+    private static final Pattern THEME_ID_PATTERN = Pattern.compile("(?i)\\btheme[_-]?\\d+\\b|\\b\\d{4,}\\b");
 
     @Resource
     @Qualifier("operationQaAgentClient")
@@ -50,6 +56,9 @@ public class OperationQaAgent extends AbstractAgent {
 
     @Resource
     private AgentTraceService agentTraceService;
+
+    @Resource
+    private ThemeBusinessClient themeBusinessClient;
 
     @Override
     public AgentCode agentCode() {
@@ -80,29 +89,31 @@ public class OperationQaAgent extends AbstractAgent {
 
         boolean themeDataQuery = isThemeDataQuery(userMessage);
         agentTraceService.record(traceId, agentCode().name(), agentName(), "intent", "theme_data_query_detected", "success", themeDataQuery);
+        ThemeSnapshotLookup snapshotLookup = lookupThemeSnapshotIfNeeded(userMessage, themeDataQuery, traceId);
+
         if (references.isEmpty() && !themeDataQuery) {
             agentTraceService.record(traceId, agentCode().name(), agentName(), "fallback", "knowledge_miss_fallback", "success", buildFallbackMessage());
             return Flux.just(dataEvent(buildFallbackMessage()), ChatEventVO.stop());
         }
 
         String conversationId = normalizeConversationId(userId, chatId);
-        String userPrompt = buildUserPrompt(userMessage, references, themeDataQuery);
+        String userPrompt = buildUserPrompt(userMessage, references, themeDataQuery, snapshotLookup);
         agentTraceService.record(traceId, agentCode().name(), agentName(), "prompt", "user_prompt_built", "success", userPrompt);
 
         Flux<ChatEventVO> contentStream = Flux.defer(() -> {
-                    AgentTraceContext.setTraceId(traceId);
-                    long start = System.currentTimeMillis();
-                    return chatClient.prompt()
-                            .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
-                            .user(userPrompt)
-                            .stream()
-                            .content()
-                            .filter(Objects::nonNull)
-                            .map(this::dataEvent)
-                            .doOnComplete(() -> agentTraceService.record(traceId, agentCode().name(), agentName(),
-                                    "agent", "agent_complete", "success", Map.of("durationMs", System.currentTimeMillis() - start)))
-                            .doFinally(signalType -> AgentTraceContext.clear());
-                });
+            AgentTraceContext.setTraceId(traceId);
+            long start = System.currentTimeMillis();
+            return chatClient.prompt()
+                    .advisors(advisors -> advisors.param(conversationIdParam(), conversationId))
+                    .user(userPrompt)
+                    .stream()
+                    .content()
+                    .filter(Objects::nonNull)
+                    .map(this::dataEvent)
+                    .doOnComplete(() -> agentTraceService.record(traceId, agentCode().name(), agentName(),
+                            "agent", "agent_complete", "success", Map.of("durationMs", System.currentTimeMillis() - start)))
+                    .doFinally(signalType -> AgentTraceContext.clear());
+        });
 
         return appendStop(contentStream)
                 .onErrorResume(ex -> {
@@ -115,37 +126,76 @@ public class OperationQaAgent extends AbstractAgent {
         return THEME_DATA_QUERY_PATTERN.matcher(userMessage).find();
     }
 
+    private ThemeSnapshotLookup lookupThemeSnapshotIfNeeded(String userMessage, boolean themeDataQuery, String traceId) {
+        if (!themeDataQuery) {
+            return ThemeSnapshotLookup.skipped("not_theme_data_query");
+        }
+
+        Optional<String> themeId = extractThemeId(userMessage);
+        if (themeId.isEmpty()) {
+            agentTraceService.record(traceId, agentCode().name(), agentName(), "tool_guard", "theme_id_missing", "success", userMessage);
+            return ThemeSnapshotLookup.missingThemeId();
+        }
+
+        String resolvedThemeId = themeId.get();
+        long start = System.currentTimeMillis();
+        agentTraceService.recordToolCall(traceId, agentCode().name(), agentName(), "forced_queryThemeBusinessSnapshot", Map.of("themeId", resolvedThemeId));
+        try {
+            ThemeBusinessSnapshotVO snapshot = themeBusinessClient.queryThemeBusinessSnapshot(resolvedThemeId);
+            agentTraceService.recordToolResult(traceId, agentCode().name(), agentName(), "forced_queryThemeBusinessSnapshot", snapshot, System.currentTimeMillis() - start);
+            return ThemeSnapshotLookup.success(resolvedThemeId, snapshot);
+        } catch (Exception ex) {
+            agentTraceService.recordError(traceId, agentCode().name(), agentName(), "tool_guard", "forced_queryThemeBusinessSnapshot failed", ex);
+            return ThemeSnapshotLookup.degraded(resolvedThemeId, "主题业务系统暂时不可用，已降级为基于知识库规则回答。");
+        }
+    }
+
+    private Optional<String> extractThemeId(String userMessage) {
+        if (!StringUtils.hasText(userMessage)) {
+            return Optional.empty();
+        }
+        Matcher matcher = THEME_ID_PATTERN.matcher(userMessage);
+        if (!matcher.find()) {
+            return Optional.empty();
+        }
+        return Optional.of(matcher.group());
+    }
+
     private String buildFallbackMessage() {
         return "当前知识库没有明确说明，建议联系工号为 "
                 + ragProperties.getFallbackOwnerEmployeeNo()
                 + " 的业务接口人确认，或提交工单补充知识库资料。";
     }
 
-    private String buildUserPrompt(String userMessage, List<KbSearchResultVO> references, boolean themeDataQuery) {
+    private String buildUserPrompt(String userMessage, List<KbSearchResultVO> references, boolean themeDataQuery, ThemeSnapshotLookup snapshotLookup) {
         if (references.isEmpty()) {
-            return buildToolOnlyPrompt(userMessage);
+            return buildToolOnlyPrompt(userMessage, snapshotLookup);
         }
-        return buildRagUserPrompt(userMessage, references, themeDataQuery);
+        return buildRagUserPrompt(userMessage, references, themeDataQuery, snapshotLookup);
     }
 
-    private String buildToolOnlyPrompt(String userMessage) {
+    private String buildToolOnlyPrompt(String userMessage, ThemeSnapshotLookup snapshotLookup) {
         return """
                 用户的问题涉及具体主题业务数据，但知识库没有命中可参考资料。
-                如果用户提供了主题 ID，请调用主题业务 Tool 查询业务快照后回答。
+                后端已优先执行确定性主题业务快照查询，请优先基于【主题业务快照】回答。
+                如果【主题业务快照】提示业务系统不可用，请明确说明当前只能基于通用规则降级回答，不要编造实时状态。
                 如果用户没有提供主题 ID，请提示用户补充主题 ID。
+
+                【主题业务快照】
+                %s
 
                 【用户问题】
                 %s
-                """.formatted(userMessage);
+                """.formatted(formatSnapshotLookup(snapshotLookup), userMessage);
     }
 
-    private String buildRagUserPrompt(String userMessage, List<KbSearchResultVO> references, boolean themeDataQuery) {
+    private String buildRagUserPrompt(String userMessage, List<KbSearchResultVO> references, boolean themeDataQuery, ThemeSnapshotLookup snapshotLookup) {
         String context = references.stream()
                 .map(this::formatReference)
                 .collect(Collectors.joining("\n\n"));
 
         String toolInstruction = themeDataQuery
-                ? "如果问题涉及具体主题 ID 的状态、审核、上架或驳回原因，必须调用主题业务 Tool 后再回答。"
+                ? "如果问题涉及具体主题 ID 的状态、审核、上架或驳回原因，后端已优先执行确定性主题业务快照查询。请结合【主题业务快照】和知识库规则回答；如果快照降级或缺失，不要编造实时状态。"
                 : "请只根据知识库资料回答；资料不足时说明“当前知识库没有明确说明”。";
 
         return """
@@ -155,12 +205,60 @@ public class OperationQaAgent extends AbstractAgent {
                 回答要面向运营、审核和客服人员，先给结论，再给必要步骤或注意事项。
                 回答末尾请用“参考资料”列出命中的文档标题和来源路径。
 
+                【主题业务快照】
+                %s
+
                 【知识库资料】
                 %s
 
                 【用户问题】
                 %s
-                """.formatted(toolInstruction, ragProperties.getFallbackOwnerEmployeeNo(), context, userMessage);
+                """.formatted(toolInstruction, ragProperties.getFallbackOwnerEmployeeNo(), formatSnapshotLookup(snapshotLookup), context, userMessage);
+    }
+
+    private String formatSnapshotLookup(ThemeSnapshotLookup snapshotLookup) {
+        if (snapshotLookup == null || snapshotLookup.status() == SnapshotLookupStatus.SKIPPED) {
+            return "本轮问题不需要查询具体主题业务快照。";
+        }
+        if (snapshotLookup.status() == SnapshotLookupStatus.MISSING_THEME_ID) {
+            return "用户问题涉及具体主题数据，但未识别到主题 ID。请提示用户补充主题 ID。";
+        }
+        if (snapshotLookup.status() == SnapshotLookupStatus.DEGRADED) {
+            return """
+                    查询状态：降级
+                    主题ID：%s
+                    降级原因：%s
+                    回答要求：只能基于知识库规则和通用处理流程回答，不要编造该主题的实时审核、上架或可见状态。
+                    """.formatted(snapshotLookup.themeId(), snapshotLookup.degradeReason());
+        }
+
+        ThemeBusinessSnapshotVO snapshot = snapshotLookup.snapshot();
+        return """
+                查询状态：成功
+                主题ID：%s
+                主题名称：%s
+                创作者ID：%s
+                主题状态：%s
+                审核状态：%s
+                上架状态：%s
+                可见渠道：%s
+                原因说明：%s
+                处理建议：%s
+                最近更新时间：%s
+                最近审核记录：%s
+                """.formatted(
+                snapshot.getThemeId(),
+                snapshot.getThemeName(),
+                snapshot.getCreatorId(),
+                snapshot.getThemeStatus(),
+                snapshot.getAuditStatus(),
+                snapshot.getPublishStatus(),
+                snapshot.getVisibleChannels(),
+                snapshot.getReason(),
+                snapshot.getSuggestion(),
+                snapshot.getUpdatedTime(),
+                snapshot.getAuditRecords()
+        );
     }
 
     private String formatReference(KbSearchResultVO reference) {
@@ -176,5 +274,36 @@ public class OperationQaAgent extends AbstractAgent {
                 内容：
                 %s
                 """.formatted(title, sourcePath, chunkIndex, reference.getScore(), reference.getContent());
+    }
+
+    private enum SnapshotLookupStatus {
+        SKIPPED,
+        MISSING_THEME_ID,
+        SUCCESS,
+        DEGRADED
+    }
+
+    private record ThemeSnapshotLookup(
+            SnapshotLookupStatus status,
+            String themeId,
+            ThemeBusinessSnapshotVO snapshot,
+            String degradeReason
+    ) {
+
+        static ThemeSnapshotLookup skipped(String reason) {
+            return new ThemeSnapshotLookup(SnapshotLookupStatus.SKIPPED, null, null, reason);
+        }
+
+        static ThemeSnapshotLookup missingThemeId() {
+            return new ThemeSnapshotLookup(SnapshotLookupStatus.MISSING_THEME_ID, null, null, "missing_theme_id");
+        }
+
+        static ThemeSnapshotLookup success(String themeId, ThemeBusinessSnapshotVO snapshot) {
+            return new ThemeSnapshotLookup(SnapshotLookupStatus.SUCCESS, themeId, snapshot, null);
+        }
+
+        static ThemeSnapshotLookup degraded(String themeId, String reason) {
+            return new ThemeSnapshotLookup(SnapshotLookupStatus.DEGRADED, themeId, null, reason);
+        }
     }
 }
